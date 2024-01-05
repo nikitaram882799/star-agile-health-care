@@ -1,0 +1,34 @@
+def containerName="medicure_healthcare"
+def tag="latest"
+def dockerHubUser="nikitaram2799"
+
+node(){
+     def mvnHome = tool name: 'maven3', type: 'maven'
+     def DockerHome = tool name: 'docker'
+     
+    
+    stage('code checkout'){
+     checkout scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[credentialsId: 'GitHubCreds', url: 'https://github.com/nikitaram882799/star-agile-health-care.git']])
+    }
+    stage('Maven Build'){
+        sh "${mvnHome}/bin/mvn clean install"
+    }  
+      stage("Image Prune"){
+         sh "docker image prune -f"
+    }
+     stage('Image Build'){
+        sh "docker build -t $containerName:$tag --pull --no-cache ."
+        echo "Image build complete"
+    }
+     stage('Push to Docker Registry'){
+        withCredentials([usernamePassword(credentialsId: 'DockerHubCreds', passwordVariable: 'dockerPassword', usernameVariable: 'dockeruser')]) {
+            sh "docker login -u $dockerUser -p $dockerPassword"
+            sh "docker tag $containerName:$tag $dockerUser/$containerName:$tag"
+            sh "docker push $dockerUser/$containerName:$tag"
+            echo "Image push complete"
+        }
+     }
+     stage('Ansible Deployment') {
+     ansiblePlaybook become: true, credentialsId: 'ssh', disableHostKeyChecking: true, installation: 'ansible', inventory: '/etc/ansible/', playbook: 'ansible-playbook.yml', vaultTmpPath: ''
+     }
+}
